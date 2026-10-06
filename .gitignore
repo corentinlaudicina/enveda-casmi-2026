@@ -1,0 +1,29 @@
+# environments and caches
+.venv/
+.venv-*/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+
+# data (symlinks to external disk)
+data
+external
+
+# large artifacts
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.parquet
+*.whl
+*.csv
+
+# generated outputs / bulky dirs
+results/
+kaggle_submission/
+kaggle_output/
+dreaMS/
+
+# local tooling
+.claude/
