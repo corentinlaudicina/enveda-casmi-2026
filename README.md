@@ -58,7 +58,7 @@ Local evaluation uses held-out molecules the model never saw ([evaluate_ranking.
 | MLP + ranking, validation molecules, train pool | MRR@25 0.46 (baseline MLP), 0.456 with the ranking loss |
 | Baseline MLP on natural products (`enveda-np-examples`, train+COCONUT pool) | 0.138 vs 0.107 random: a model trained on `enveda-180` alone barely transfers to natural products |
 | Ranking loss, validation molecules, (train − queries) + PubChem pool | 0.133 → 0.175 (+0.043 ± 0.006) |
-| Public LB, MLP with ranking loss, train + COCONUT pool | **0.112** (best) |
+| Public LB, MLP with ranking loss, train + COCONUT pool | 0.112 |
 | Public LB, same model, train + PubChem pool | 0.079 |
 
 - **Library search cannot find novel molecules.** Better spectrum similarity adds at most ~0.02 to the score. Replacing cosine with DreaMS embeddings did not help either (0.811 vs 0.867 on known molecules).
@@ -91,7 +91,6 @@ HANDOFF.md                       detailed project log: data traps, environments,
 - `data/` and `external/` (competition data, COCONUT, PubChem tier): symlinks to an external disk.
 - Trained models (`*.pt`), generated libraries (`*.npy`, `*.parquet`, `*.npz`) and result files: rebuild them with the `build_*.py` and `train_*.py` scripts, in that order.
 - `dreaMS/` (DreaMS embedding experiments, separate Python 3.11 environment).
-- `kaggle_submission/`: the Kaggle notebooks and datasets used for submissions.
 
 ## Environment
 Python 3.14 with polars, numpy, torch and RDKit 2026.3.x (the metric pins 2026.03.3). DreaMS needs its own Python 3.11 environment.
