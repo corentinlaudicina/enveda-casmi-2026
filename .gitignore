@@ -23,7 +23,7 @@ external
 results/
 kaggle_submission/
 kaggle_output/
-dreaMS/
+dreaMS/dreams_cache
 
 # local tooling
 .claude/
