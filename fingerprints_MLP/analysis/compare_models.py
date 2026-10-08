@@ -43,9 +43,11 @@ def main():
     for family in families:
         mrrs = seed_mrrs(family)
         if mrrs.is_empty():
-            print(f"no results for {family} in {RESULTS_DIR}")
+            print(f"no results for {family} in {RESULTS_DIR}: run evaluate_ranking.py {family}_seed<N>.pt first")
             continue
         all_mrrs.append(mrrs.with_columns(pl.lit(family).alias("family")))
+    if not all_mrrs:
+        raise SystemExit("nothing to compare")
     all_mrrs = pl.concat(all_mrrs)
 
     for (scenario,), scenario_mrrs in all_mrrs.group_by("scenario", maintain_order=True):
