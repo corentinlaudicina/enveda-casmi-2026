@@ -1,8 +1,6 @@
 import numpy as np
-from rdkit import Chem, RDLogger
+from rdkit import Chem
 from rdkit.Chem import rdFingerprintGenerator
-
-RDLogger.DisableLog("rdApp.*")  # silence RDKit's parsing warnings
 
 N_BITS = 2048
 MORGAN_GENERATOR = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=N_BITS)

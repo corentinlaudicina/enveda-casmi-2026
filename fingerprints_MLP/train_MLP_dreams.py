@@ -23,6 +23,7 @@ import torch
 from torch import nn
 
 from build_spectrum_arrays import TRAIN_PATH
+from dreams_inputs import EMBEDDING_SCALE, EMBEDDING_SIZE  # 1024 numbers, x 32 so that each is ~1 in size
 from metadata_features import METADATA_COLUMNS, N_METADATA_FEATURES, metadata_features
 from morgan_generator import N_BITS
 from spectrum_quality import clean_spectrum_mask
@@ -32,10 +33,6 @@ from train_MLP import (
 
 EMBEDDINGS_DIR = Path("/Volumes/HDLAUDICINA/enveda-CASMI26-molecule-id-mass-spectra/dreaMS/dreams_train_embeddings")
 MODEL_PATH = MODEL_DIR / "mlp_dreams.pt"
-EMBEDDING_SIZE = 1024
-# The components of a unit vector of 1024 numbers are ~0.03 in size. Times sqrt(1024) = 32 they are ~1, like the
-# other input features. A fixed constant, not a statistic of train, so train and test are scaled the same way.
-EMBEDDING_SCALE = 32.0
 
 
 def build_model() -> nn.Sequential:
@@ -58,8 +55,7 @@ def load_embeddings(n_spectra: int) -> tuple[np.ndarray, np.ndarray]:
     embeddings = np.zeros((n_spectra, EMBEDDING_SIZE), dtype=np.float16)
     has_embedding = np.zeros(n_spectra, dtype=bool)
 
-    part_paths = sorted(EMBEDDINGS_DIR.glob("part_*.npz"))
-    part_paths = [path for path in part_paths if not path.name.endswith(".tmp.npz")]  # a part being written
+    part_paths = embedding_part_paths()
     for part_path in part_paths:
         part = np.load(part_path)
         row_ids = part["row_ids"].astype(np.int64)
@@ -68,6 +64,32 @@ def load_embeddings(n_spectra: int) -> tuple[np.ndarray, np.ndarray]:
 
     print(f"DreaMS embeddings: {len(part_paths)} parts, {has_embedding.sum():,} of {n_spectra:,} train spectra")
     return embeddings, has_embedding
+
+
+def embeddings_of_rows(row_indices: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(embeddings (n, EMBEDDING_SIZE) float16, has_embedding (n,) bool) of the given train rows, in their order.
+
+    Like load_embeddings, but reads only the parts holding these rows and keeps only these rows: for evaluation.
+    """
+    embeddings = np.zeros((len(row_indices), EMBEDDING_SIZE), dtype=np.float16)
+    has_embedding = np.zeros(len(row_indices), dtype=bool)
+
+    for part_path in embedding_part_paths():
+        part = np.load(part_path)
+        part_row_ids = part["row_ids"].astype(np.int64)  # ascending
+        in_part = np.isin(row_indices, part_row_ids)
+        if not in_part.any():
+            continue
+        positions = np.searchsorted(part_row_ids, row_indices[in_part])
+        embeddings[in_part] = part["embeddings"][positions]
+        has_embedding[in_part] = True
+    return embeddings, has_embedding
+
+
+def embedding_part_paths() -> list[Path]:
+    """The finished part files of dreaMS/embed_train.py."""
+    part_paths = sorted(EMBEDDINGS_DIR.glob("part_*.npz"))
+    return [path for path in part_paths if not path.name.endswith(".tmp.npz")]  # a part being written
 
 
 class DreamsBatcher:

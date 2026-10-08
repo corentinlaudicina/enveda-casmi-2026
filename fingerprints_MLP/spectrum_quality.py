@@ -1,11 +1,9 @@
 """Flag the clearly wrong or useless train spectra, so they can be left out of training.
 
 A spectrum is dropped if any of these holds:
-- |precursor_error_ppm| > MAX_PRECURSOR_ERROR_PPM: the precursor doesn't match the labelled molecule's mass,
-  so the label (structure or adduct) is probably wrong;
+- |precursor_error_ppm| > MAX_PRECURSOR_ERROR_PPM: the precursor doesn't match the labelled molecule's mass, so the label (structure or adduct) is probably wrong;
 - fewer than MIN_PEAKS peaks: almost no information;
-- a peak more than MAX_PEAK_ABOVE_PRECURSOR Da above the precursor m/z: a fragment can't be heavier than its
-  precursor, so the spectrum is contaminated or chimeric (the margin leaves room for the precursor's isotope peaks).
+- a peak more than MAX_PEAK_ABOVE_PRECURSOR Da above the precursor m/z: a fragment can't be heavier than its precursor, meaning the spectrum is contaminated.
 """
 
 from pathlib import Path

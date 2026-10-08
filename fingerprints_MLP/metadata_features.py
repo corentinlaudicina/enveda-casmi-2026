@@ -1,7 +1,6 @@
 """Numeric features describing how a spectrum was measured, appended to the binned spectrum as MLP input.
 
-All features are scaled with fixed constants (not statistics fitted on train), so train and test
-spectra are transformed identically, and every feature lies roughly in [0, 1] like the sqrt intensities.
+All features are scaled by a hand-picked constant.
 
 Features, in order:
 - precursor_mz / 1000
@@ -21,12 +20,11 @@ METADATA_COLUMNS = ["precursor_mz", "adduct", "ionization_mode", "collision_ener
 
 MASS_SCALE = 1000.0       # Da
 
-# The energies of enveda-180 and of the test spectra, alone or merged
 COLLISION_ENERGIES = [20.0, 40.0, 60.0]  # eV
 
-# adduct -> (number of molecules M in the ion, mass added to n * M), all singly charged:
+# adduct -> (number of molecules M in the ion, mass added to n * M)
 # precursor_mz = n * M + shift, so M = (precursor_mz - shift) / n
-# Covers every adduct of enveda-180, which includes the 7 adducts of the test spectra.
+
 PROTON = 1.007276
 ADDUCTS = {
     "[M+H]+": (1, PROTON),

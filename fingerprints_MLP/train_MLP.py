@@ -15,7 +15,8 @@ Needs the outputs of build_fingerprint_library.py and build_spectrum_arrays.py i
   Molecules of enveda-np-examples are never trained on, from any library: they are the natural-product
   test set of evaluate_ranking.py.
 - Learning rate: cosine decay from LEARNING_RATE to 0 over all training steps.
-- The model of the epoch with the best validation Tanimoto (any threshold) is saved.
+- The model of the epoch with the best validation Tanimoto (any threshold) is saved. Validation here is the selection
+  half of the validation molecules; the other half is kept for evaluate_ranking.py (split_selection_and_test).
 """
 
 from pathlib import Path
@@ -48,7 +49,7 @@ LEARNING_RATE = 1e-3
 N_EPOCHS = 20
 THRESHOLDS = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]  # bit is predicted on if p > threshold
 SEED = 0
-
+ 
 if torch.backends.mps.is_available():
     DEVICE = torch.device("mps")  # Apple GPU
 elif torch.cuda.is_available():
@@ -57,9 +58,9 @@ else:
     DEVICE = torch.device("cpu")
 
 
-def build_model() -> nn.Sequential:
+def build_model(n_inputs: int = N_BINS + N_METADATA_FEATURES) -> nn.Sequential:
     return nn.Sequential(
-        nn.Linear(N_BINS + N_METADATA_FEATURES, HIDDEN_SIZE),
+        nn.Linear(n_inputs, HIDDEN_SIZE),
         nn.ReLU(),
         nn.Dropout(DROPOUT),
         nn.Linear(HIDDEN_SIZE, HIDDEN_SIZE),
@@ -99,6 +100,23 @@ def split_spectra_by_molecule(
     train_indices = np.flatnonzero(in_train_libraries & ~spectrum_is_validation & ~spectrum_is_natural_product)
     validation_indices = np.flatnonzero(in_validation_libraries & spectrum_is_validation)
     return train_indices, validation_indices
+
+
+def split_selection_and_test(fp_index: np.ndarray, validation_indices: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return (selection, test) spectrum indices: two halves of the validation molecules (by inchikey14).
+
+    The training scripts pick their best epoch on the selection half; evaluate_ranking.py reports on the test half,
+    so the reported number is not the one the checkpoint was chosen on. Same halves in every script (own generator).
+    """
+    molecules = pl.read_parquet(LIBRARY_DIR / "molecules.parquet")
+    validation_inchikey14 = molecules["inchikey14"].gather(fp_index[validation_indices])
+
+    unique_inchikey14 = validation_inchikey14.unique().sort().to_numpy()
+    rng = np.random.default_rng(SEED)
+    test_inchikey14 = rng.choice(unique_inchikey14, size=len(unique_inchikey14) // 2, replace=False)
+
+    is_test = validation_inchikey14.is_in(test_inchikey14).to_numpy()
+    return validation_indices[~is_test], validation_indices[is_test]
 
 
 def build_inputs(peak_bins: np.ndarray, peak_intensities: np.ndarray, metadata: np.ndarray) -> torch.Tensor:
@@ -208,6 +226,7 @@ def main():
 
     batcher = SpectrumBatcher(metadata)
     train_indices, validation_indices = split_spectra_by_molecule(batcher.fp_index, spectrum_info["ingest_lib"], rng)
+    validation_indices, _ = split_selection_and_test(batcher.fp_index, validation_indices)  # test half: evaluate_ranking.py
 
     # drop the clearly wrong or useless spectra from training (validation is enveda-180: already clean)
     is_clean = clean_spectrum_mask(TRAIN_PATH)

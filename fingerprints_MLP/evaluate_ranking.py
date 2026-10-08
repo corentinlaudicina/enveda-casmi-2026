@@ -1,19 +1,22 @@
-"""Evaluate the MLP + candidate ranking with the competition metric (MRR@25) on molecules the MLP never saw.
+"""Evaluate the MLP + candidate ranking with the competition metric (MRR@25) on molecules the MLP has not seen.
 
 Each query molecule gets the spectra of ONE adduct (all its collision energies), like a test molecule_id.
 Its prediction is the MLP's bit probabilities averaged over those spectra; candidates are the structures
 of a pool within PPM_TOLERANCE of its neutral mass; metric = 1 / rank of the true inchikey14 if in the top 25, else 0.
 
 Scenarios:
-- A. enveda validation, train pool: N_EVAL_MOLECULES validation molecules of train_MLP.py's split,
+- A. enveda validation, train pool: N_EVAL_MOLECULES validation molecules of train_MLP.py's split, from the test
+     half (split_selection_and_test: the training scripts choose their best epoch on the other half),
      candidates = train structures. The answer is always in the pool: measures the ranking alone.
 - B. enveda validation, train + COCONUT pool: same molecules, ~3x more candidates: measures the cost of a bigger pool.
 - C. natural products, (train - queries) + COCONUT pool: the 250 enveda-np-examples molecules (timsTOF natural
      products, never seen by the MLP, which trains on enveda-180 only). They are removed from the train part of
      the pool, so they are found only if COCONUT has them: a realistic "novel natural product" test.
 
-Compared to random ranking of the same candidates and to library search on novel molecules (0.017).
-Per-molecule results of all scenarios are saved to results/fingerprint_ranking_<model name>.csv.
+Compared to random ranking of the same candidates and to library search on novel molecules (0.017). Per-molecule results of all scenarios are saved to results/fingerprint_ranking_<model name>.csv;
+compare_models.py summarises them over training seeds.
+
+A combined model (train_MLP_combined.py) also gets the DreaMS embedding of each query spectrum (from dreaMS/embed_train.py: query spectra are train rows), and the flag 0 for spectra of rare adducts that have none.
 
 Usage: python evaluate_ranking.py [model file in fingerprints_MLP/models/, default: train_MLP.MODEL_PATH]
 """
@@ -27,9 +30,10 @@ from torch import nn
 
 from build_spectrum_arrays import TRAIN_PATH
 from metadata_features import METADATA_COLUMNS, metadata_features, neutral_mass_expression
-from predict import load_model, predict_probabilities
+from predict import load_model, predict_probabilities, uses_dreams_embedding
 from rank_candidates import PPM_TOLERANCE, SCORERS, CandidateLibrary
-from train_MLP import LIBRARY_DIR, MODEL_DIR, MODEL_PATH, SEED, split_spectra_by_molecule
+from train_MLP import LIBRARY_DIR, MODEL_DIR, MODEL_PATH, SEED, split_selection_and_test, split_spectra_by_molecule
+from train_MLP_dreams import embeddings_of_rows
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 RESULTS_DIR = PROJECT_DIR / "results"
@@ -69,8 +73,16 @@ def predict_queries(
     """Bit probabilities of every query spectrum, row i <-> row i of queries."""
     spectrum_indices = queries["spectrum_index"].to_numpy()
     metadata = metadata_features(spectrum_info[spectrum_indices])
+
+    embeddings = None
+    has_embedding = None
+    if uses_dreams_embedding(model):
+        embeddings, has_embedding = embeddings_of_rows(spectrum_indices)
+        print(f"DreaMS embedding for {has_embedding.sum():,} of {len(spectrum_indices):,} query spectra")
+
     return predict_probabilities(
-        model, arrays["peak_bins"][spectrum_indices], arrays["peak_intensities"][spectrum_indices], metadata
+        model, arrays["peak_bins"][spectrum_indices], arrays["peak_intensities"][spectrum_indices], metadata,
+        embeddings, has_embedding,
     )
 
 
@@ -153,6 +165,7 @@ def main():
     spectrum_info = pl.scan_parquet(TRAIN_PATH).select(["ingest_lib", "inchikey14"] + METADATA_COLUMNS).collect()
     arrays = dict(np.load(LIBRARY_DIR / "spectrum_arrays.npz"))
     _, validation_indices = split_spectra_by_molecule(arrays["fp_index"], spectrum_info["ingest_lib"], rng)
+    _, test_indices = split_selection_and_test(arrays["fp_index"], validation_indices)  # not used to pick the epoch
 
     train_molecules = pl.read_parquet(LIBRARY_DIR / "molecules.parquet")
     train_fingerprints = np.load(LIBRARY_DIR / "morgan_fingerprints.npy")
@@ -163,7 +176,7 @@ def main():
     model = load_model(model_path)
 
     # query molecules and their predictions
-    enveda_queries = choose_query_spectra(spectrum_info, validation_indices)
+    enveda_queries = choose_query_spectra(spectrum_info, test_indices)
     enveda_probabilities = predict_queries(model, enveda_queries, spectrum_info, arrays)
 
     natural_product_indices = np.flatnonzero((spectrum_info["ingest_lib"] == NATURAL_PRODUCT_LIBRARY).to_numpy())
