@@ -60,9 +60,6 @@ def predict_probabilities(
     embeddings (n_spectra, EMBEDDING_SIZE) and has_embedding (n_spectra,) bool: only for a combined model
     (uses_dreams_embedding), which needs them.
     """
-    if uses_dreams_embedding(model) and embeddings is None:
-        raise ValueError("this model reads the DreaMS embedding: give embeddings and has_embedding")
-
     probabilities = []
     for start in range(0, len(peak_bins), BATCH_SIZE):
         end = start + BATCH_SIZE

@@ -74,8 +74,7 @@ def predict_queries(
     spectrum_indices = queries["spectrum_index"].to_numpy()
     metadata = metadata_features(spectrum_info[spectrum_indices])
 
-    embeddings = None
-    has_embedding = None
+    embeddings = has_embedding = None
     if uses_dreams_embedding(model):
         embeddings, has_embedding = embeddings_of_rows(spectrum_indices)
         print(f"DreaMS embedding for {has_embedding.sum():,} of {len(spectrum_indices):,} query spectra")

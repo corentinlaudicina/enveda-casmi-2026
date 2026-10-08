@@ -52,17 +52,8 @@ def load_embeddings(n_spectra: int) -> tuple[np.ndarray, np.ndarray]:
 
     Rows without an embedding are zeros, and has_embedding is False for them. About 5 GB for all of train.
     """
-    embeddings = np.zeros((n_spectra, EMBEDDING_SIZE), dtype=np.float16)
-    has_embedding = np.zeros(n_spectra, dtype=bool)
-
-    part_paths = embedding_part_paths()
-    for part_path in part_paths:
-        part = np.load(part_path)
-        row_ids = part["row_ids"].astype(np.int64)
-        embeddings[row_ids] = part["embeddings"]
-        has_embedding[row_ids] = True
-
-    print(f"DreaMS embeddings: {len(part_paths)} parts, {has_embedding.sum():,} of {n_spectra:,} train spectra")
+    embeddings, has_embedding = embeddings_of_rows(np.arange(n_spectra))
+    print(f"DreaMS embeddings: {has_embedding.sum():,} of {n_spectra:,} train spectra")
     return embeddings, has_embedding
 
 
