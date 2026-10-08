@@ -31,7 +31,6 @@ ISOTOPE_LABEL = r"\[\d+[A-Z]"  # a SMILES bracket atom with a mass number: [2H],
 
 def without_isotope_labels(mol: Chem.Mol) -> Chem.Mol:
     """The same molecule with every atom at natural isotopic composition (labelled hydrogens become implicit)."""
-    mol = Chem.Mol(mol)
     for atom in mol.GetAtoms():
         atom.SetIsotope(0)
     return Chem.RemoveHs(mol)

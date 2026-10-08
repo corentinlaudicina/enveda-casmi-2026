@@ -107,9 +107,7 @@ def ranking_loss(scores: torch.Tensor) -> torch.Tensor:
     loss_per_row = functional.cross_entropy(scores, truth_column, reduction="none")
 
     has_negative = torch.isfinite(scores[:, 1:]).any(dim=1)
-    if not has_negative.any():
-        return torch.zeros((), device=DEVICE)
-    return loss_per_row[has_negative].mean()
+    return (loss_per_row * has_negative).sum() / has_negative.sum().clamp(min=1)
 
 
 @torch.no_grad()
