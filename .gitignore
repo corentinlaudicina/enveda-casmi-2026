@@ -23,6 +23,7 @@ external
 results/
 kaggle_submission/
 kaggle_output/
+casmi26-*.ipynb
 dreaMS/dreams_cache
 
 # local tooling

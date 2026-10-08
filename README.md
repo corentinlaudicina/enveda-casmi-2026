@@ -31,6 +31,7 @@ top 25 SMILES, one per InChIKey14
 ### Model input
 - The spectrum's 100 strongest peaks, binned into 10,000 bins of 0.1 Da (max sqrt intensity per bin) ([build_spectrum_arrays.py](fingerprints_MLP/build_spectrum_arrays.py)).
 - Measurement metadata ([metadata_features.py](fingerprints_MLP/metadata_features.py)): precursor m/z, neutral mass, polarity, collision energy (multi-hot), adduct (one-hot).
+- Combined model only: the spectrum's DreaMS embedding (full, or its first k PCA coordinates) and a has-embedding flag ([dreams_inputs.py](fingerprints_MLP/dreams_inputs.py), shared by training and prediction). Spectra of rare adducts have no embedding: zeros and flag 0.
 - Training spectra are filtered by [spectrum_quality.py](fingerprints_MLP/spectrum_quality.py): precursor mass error, minimum number of peaks, no fragment heavier than the precursor.
 
 ### Training variants
@@ -40,17 +41,23 @@ top 25 SMILES, one per InChIKey14
 | [train_MLP_negatives.py](fingerprints_MLP/train_MLP_negatives.py) | Adds a ranking loss: the truth must beat 32 random same-mass PubChem decoys (softmax cross-entropy on soft Tanimoto). This trains the model for the actual task: separating isomers |
 | [train_MLP_resampled.py](fingerprints_MLP/train_MLP_resampled.py) | Same loss, but fresh decoys at every batch, so the model cannot memorise a fixed set |
 | [train_MLP_dreams.py](fingerprints_MLP/train_MLP_dreams.py) | Uses DreaMS embeddings as input instead of binned peaks |
+| [train_MLP_combined.py](fingerprints_MLP/train_MLP_combined.py) | `train_MLP_resampled.py` with binned peaks **and** the DreaMS embedding as input. Embedding dropout (0.15) during training, so the model also works without it. Optional PCA reduction: `python train_MLP_combined.py <seed> <k>` |
 
-The best model so far is the one trained with the ranking loss (`mlp_negatives`).
+The ranking-loss scripts (`negatives`, `resampled`, `combined`) share their setup and training loop, take a training seed on the command line and save `models/<name>_seed<N>.pt`. The molecule split stays fixed, so seeds only change the training. [compare_models.py](fingerprints_MLP/compare_models.py) reports the mean ± standard deviation of each model family over its seeds.
+
+The validation molecules are split in two halves: the training scripts pick their best epoch on one, and `evaluate_ranking.py` reports on the other.
+
+The best model on the leaderboard so far is the one trained with the ranking loss (`mlp_negatives`). First seeded runs (seed 0): `negatives` and `resampled` both reach a validation MRR of ~0.673 among their candidates; the combined model with the full DreaMS embedding led for the first epochs, then fell ~0.02 behind `resampled`. PCA-reduced embeddings (256, 128, 64 dimensions) are next.
 
 ### Candidate pools
 - **train**: the structures of `train.parquet` (275,810 molecules).
-- **train + COCONUT**: adds 480k natural products ([build_coconut_library.py](fingerprints_MLP/build_coconut_library.py)). This is the current pool for submissions.
+- **train + COCONUT**: adds 480k natural products ([build_coconut_library.py](fingerprints_MLP/build_coconut_library.py)). This is the current pool for submissions. Isotope-labelled COCONUT entries (e.g. `[13C]`, deuterated) are replaced by their unlabelled form, so they sit in the right mass window.
+- **ChEBI + LIPID MAPS** ([build_bio_library.py](fingerprints_MLP/build_bio_library.py)): 158,790 standardised metabolites and lipids, 70,606 of them new to train + COCONUT. Built, not yet used in evaluation or submissions.
 - **train + PubChem** ([pubchem_pool/](fingerprints_MLP/pubchem_pool/)): 90M structures. Tested, but it did not help (see below).
 
 ## Results
 
-Local evaluation uses held-out molecules the model never saw ([evaluate_ranking.py](fingerprints_MLP/evaluate_ranking.py)), because the visible `test.parquet` is a placeholder copied from train.
+Local evaluation uses held-out molecules the model never saw ([evaluate_ranking.py](fingerprints_MLP/evaluate_ranking.py)), because the visible `test.parquet` is a placeholder copied from train. The validation-molecule numbers below were measured on all validation molecules, before the selection/test split; new runs report on the test half only, so they are not directly comparable.
 
 | Step | Result |
 |---|---|
@@ -72,16 +79,30 @@ Local evaluation uses held-out molecules the model never saw ([evaluate_ranking.
 fingerprints_MLP/
   build_fingerprint_library.py   Morgan fingerprint of every train molecule
   build_coconut_library.py       COCONUT candidates, same format
+  build_bio_library.py           ChEBI + LIPID MAPS candidates, same format
   build_spectrum_arrays.py       train spectra → fixed-size peak arrays
   build_negatives.py             32 fixed same-mass decoys per molecule
   build_negative_bank.py         decoy bank for the resampled variant
   train_MLP*.py                  the training variants above
-  predict.py                     spectra → fingerprint probabilities
+  dreams_inputs.py               DreaMS embedding → input columns of the combined model
+  predict.py                     spectra → fingerprint probabilities (any variant, width read from the weights)
   rank_candidates.py             candidates in a mass window, scoring, top 25
   evaluate_ranking.py            MRR@25 in three scenarios (see its docstring)
+  compare_models.py              mean ± sd over training seeds
   evaluate_fpnet.py              comparison with a public fingerprint model
   shap_analysis.py               which inputs drive the predictions
+  demo_*.ipynb                   walkthroughs of the decoys and of the ranking
   pubchem_pool/                  PubChem candidate pool: build and evaluate
+dreaMS/                          DreaMS embeddings (own Python 3.11 environment)
+  embed_train.py                 embeds every common-adduct train spectrum, in resumable parts
+  embed_dreams.py                embeds a list of train rows
+  library_search.py              DreaMS vs cosine library search
+  fit_dreams_pca.py              PCA of the embeddings for the combined model
+  dreams_lite.py                 torch + numpy re-implementation of the embedding model, for Kaggle
+  extract_dreams_weights.py      official checkpoint → plain weights for dreams_lite
+  verify_dreams_lite.py          dreams_lite vs the official embeddings
+  make_test_reference.py         official embeddings of test.parquet, to check dreams_lite on Kaggle
+  *.ipynb                        embedding exploration, adduct pairs
 exploration/                     data exploration notebook
 figures/                         saved figures
 HANDOFF.md                       detailed project log: data traps, environments, earlier results
@@ -90,11 +111,13 @@ HANDOFF.md                       detailed project log: data traps, environments,
 ## Not in the repo
 - `data/` and `external/` (competition data, COCONUT, PubChem tier): symlinks to an external disk.
 - Trained models (`*.pt`), generated libraries (`*.npy`, `*.parquet`, `*.npz`) and result files: rebuild them with the `build_*.py` and `train_*.py` scripts, in that order.
-- `dreaMS/` (DreaMS embedding experiments, separate Python 3.11 environment).
+- DreaMS weights, embeddings and caches (`dreaMS/dreams_cache/`, embeddings on the external disk).
+- Kaggle kernels and dataset folders (`kaggle_submission/`).
 
 ## Environment
-Python 3.14 with polars, numpy, torch and RDKit 2026.3.x (the metric pins 2026.03.3). DreaMS needs its own Python 3.11 environment.
+Python 3.14 with polars, numpy, torch and RDKit 2026.3.x (the metric pins 2026.03.3). The `dreams` package needs its own Python 3.11 environment; `dreams_lite.py` runs in the main one.
 
 ## Notes
 - The test set visible locally is a placeholder: every spectrum in it is also in train. Never evaluate on it; use held-out train molecules.
 - Local MRR approximates the official metric; the official metric notebook is the reference.
+- `dreams_lite.py` matches the official embeddings exactly on the Mac, but not yet on Kaggle: ties in intensity at the 100-peak cut are ordered differently by `np.argsort` on x86.
