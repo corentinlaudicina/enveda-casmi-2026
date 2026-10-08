@@ -34,7 +34,7 @@ import polars as pl
 from metric_key import standard_key
 from pubchem_tier import PROJECT_DIR, PubChemTier
 
-LIBRARY_DIR = PROJECT_DIR / "fingerprints_MLP" / "library"
+LIBRARY_DIR = PROJECT_DIR / "library" / "data"
 POOL_DIR = PROJECT_DIR / "external" / "pool"
 TEMPORARY_DIR = POOL_DIR / "pass1"
 CHUNK_SIZE = 5_000_000

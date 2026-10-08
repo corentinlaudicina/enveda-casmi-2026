@@ -23,17 +23,18 @@ import numpy as np
 import polars as pl
 import torch
 
-from build_spectrum_arrays import TRAIN_PATH
-from evaluate_ranking import (
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))  # the fingerprints_MLP modules
+from build_spectrum_arrays import TRAIN_PATH  # noqa: E402
+from evaluate_ranking import (  # noqa: E402
     RESULTS_DIR, TOP_K, build_pool, choose_query_spectra, predict_queries, random_ranking_mrr, rank_array,
     rank_queries, reciprocal_ranks,
 )
-from metadata_features import METADATA_COLUMNS
-from predict import load_model
-from rank_candidates import PPM_TOLERANCE, CandidateLibrary
-from train_MLP import LIBRARY_DIR, MODEL_DIR, SEED, split_spectra_by_molecule
+from metadata_features import METADATA_COLUMNS  # noqa: E402
+from predict import load_model  # noqa: E402
+from rank_candidates import PPM_TOLERANCE, CandidateLibrary  # noqa: E402
+from train_MLP import LIBRARY_DIR, MODEL_DIR, SEED, split_spectra_by_molecule  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 FPNET_DIR = PROJECT_DIR / "external" / "fpnet_prvsiyan"
 sys.path.insert(0, str(FPNET_DIR))
 import pv_fp  # noqa: E402  (prvsiyan's model code, verbatim from the notebook)

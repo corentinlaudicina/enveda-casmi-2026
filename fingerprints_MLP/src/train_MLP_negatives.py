@@ -4,7 +4,7 @@ train_MLP.py only teaches the MLP to get each fingerprint bit right. At retrieva
 beat ~10,000 pool structures of the same mass. So a second loss shows it some of them during training:
 
 - candidates of a spectrum: its true fingerprint + the N_NEGATIVES same-mass pool structures of its molecule
-  (library/negatives.npz, from build_negatives.py)
+  (library/data/negatives.npz, from build_negatives.py)
 - score of a candidate: soft Tanimoto between the predicted probabilities and its fingerprint (the "tanimoto" scorer
   of rank_candidates.py, used for retrieval)
 - ranking loss: cross-entropy of "the true structure is the best", a softmax over the candidates' scores / TEMPERATURE

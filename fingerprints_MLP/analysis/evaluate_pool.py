@@ -32,7 +32,7 @@ from rdkit import Chem
 from rdkit.Chem import rdMolHash
 from rdkit.Chem.Descriptors import ExactMolWt
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # the fingerprints_MLP modules
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))  # the fingerprints_MLP modules
 from build_spectrum_arrays import TRAIN_PATH  # noqa: E402
 from evaluate_ranking import (  # noqa: E402
     RESULTS_DIR, choose_query_spectra, predict_queries, random_ranking_mrr, rank_array, reciprocal_ranks,
@@ -43,6 +43,7 @@ from predict import load_model  # noqa: E402
 from rank_candidates import PPM_TOLERANCE, SCORERS  # noqa: E402
 from train_MLP import LIBRARY_DIR, MODEL_DIR, MODEL_PATH, SEED, split_spectra_by_molecule  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "library" / "pubchem_pool"))
 from build_pool import POOL_DIR  # noqa: E402
 from metric_key import metric_key, standard_key  # noqa: E402
 from pubchem_tier import PubChemTier  # noqa: E402

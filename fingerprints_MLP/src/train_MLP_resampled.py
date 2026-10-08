@@ -1,9 +1,9 @@
 """train_MLP_negatives.py with fresh decoys at every batch. Saves models/mlp_resampled_seed<N>.pt.
 
-train_MLP_negatives.py shows each molecule the same 32 negatives at every epoch (library/negatives.npz), so the
+train_MLP_negatives.py shows each molecule the same 32 negatives at every epoch (library/data/negatives.npz), so the
 model can memorise them instead of learning to separate look-alikes in general. Here, every time a spectrum is in a
 batch, N_NEGATIVES new decoys are drawn at random from its molecule's mass window (± PPM_TOLERANCE) in the decoy bank
-(library/negative_bank.npz, from build_negative_bank.py: ~4M pool structures, sorted by mass).
+(library/data/negative_bank.npz, from build_negative_bank.py: ~4M pool structures, sorted by mass).
 
 - decoys whose fingerprint equals the true one (the molecule itself, its stereoisomers, collisions) are masked
 - a window with fewer than N_NEGATIVES bank structures gives all of them, each once, as its real decoys (a larger

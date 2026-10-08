@@ -28,14 +28,17 @@ import numpy as np
 import polars as pl
 from torch import nn
 
-from build_spectrum_arrays import TRAIN_PATH
-from metadata_features import METADATA_COLUMNS, metadata_features, neutral_mass_expression
-from predict import load_model, predict_probabilities, uses_dreams_embedding
-from rank_candidates import PPM_TOLERANCE, SCORERS, CandidateLibrary
-from train_MLP import LIBRARY_DIR, MODEL_DIR, MODEL_PATH, SEED, split_selection_and_test, split_spectra_by_molecule
-from train_MLP_dreams import embeddings_of_rows
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))  # the fingerprints_MLP modules
+from build_spectrum_arrays import TRAIN_PATH  # noqa: E402
+from metadata_features import METADATA_COLUMNS, metadata_features, neutral_mass_expression  # noqa: E402
+from predict import load_model, predict_probabilities, uses_dreams_embedding  # noqa: E402
+from rank_candidates import PPM_TOLERANCE, SCORERS, CandidateLibrary  # noqa: E402
+from train_MLP import (  # noqa: E402
+    LIBRARY_DIR, MODEL_DIR, MODEL_PATH, SEED, split_selection_and_test, split_spectra_by_molecule,
+)
+from train_MLP_dreams import embeddings_of_rows  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = PROJECT_DIR / "results"
 
 N_EVAL_MOLECULES = 1000

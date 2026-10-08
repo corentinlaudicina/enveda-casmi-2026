@@ -28,6 +28,7 @@ Usage: python shap_analysis.py [model name in models/, default mlp_negatives]
 
 import sys
 from collections import Counter
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,15 +38,16 @@ from rdkit import Chem
 from rdkit.Chem import rdFingerprintGenerator
 from sklearn.metrics import roc_auc_score
 
-from build_spectrum_arrays import BIN_WIDTH, N_BINS, PROJECT_DIR, TRAIN_PATH
-from metadata_features import ADDUCT_NAMES, COLLISION_ENERGIES, METADATA_COLUMNS, metadata_features
-from morgan_generator import MORGAN_GENERATOR, N_BITS
-from spectrum_quality import clean_spectrum_mask
-from train_MLP import (
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))  # the fingerprints_MLP modules
+from build_spectrum_arrays import BIN_WIDTH, N_BINS, PROJECT_DIR, TRAIN_PATH  # noqa: E402
+from metadata_features import ADDUCT_NAMES, COLLISION_ENERGIES, METADATA_COLUMNS, metadata_features  # noqa: E402
+from morgan_generator import MORGAN_GENERATOR, N_BITS  # noqa: E402
+from spectrum_quality import clean_spectrum_mask  # noqa: E402
+from train_MLP import (  # noqa: E402
     DEVICE, LIBRARY_DIR, MODEL_DIR, NATURAL_PRODUCT_TEST_LIBRARY, SEED,
     SpectrumBatcher, build_model, split_spectra_by_molecule,
 )
-from train_MLP_negatives import soft_tanimoto
+from train_MLP_negatives import soft_tanimoto  # noqa: E402
 
 N_EXPLAINED = 1000  # spectra explained per set (validation, natural products)
 N_BACKGROUND = 500  # training spectra used as references

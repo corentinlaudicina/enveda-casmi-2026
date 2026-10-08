@@ -19,7 +19,7 @@ are real.
 The pool is read once, part by part in mass order (sequential reads on the USB disk), and the molecules are handled
 in mass order alongside. The end of each part is carried over to the next, for windows that span two parts.
 
-Output: library/negatives.npz
+Output: library/data/negatives.npz
 - fingerprints: uint8 (n_molecules, N_NEGATIVES, N_BITS / 8), bit-packed like morgan_fingerprints.npy
 - n_negatives: int16 (n_molecules,), number of real negatives in each row
 - window_size: int32 (n_molecules,), pool structures in the window (the molecule itself included)
@@ -39,7 +39,7 @@ from morgan_generator import N_BITS, fingerprint
 from rank_candidates import PPM_TOLERANCE, mass_windows
 from train_MLP import LIBRARY_DIR, SEED, split_spectra_by_molecule
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "pubchem_pool"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "library" / "pubchem_pool"))
 from build_pool import POOL_DIR  # noqa: E402
 from metric_key import standard_key  # noqa: E402
 

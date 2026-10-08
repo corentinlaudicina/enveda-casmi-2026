@@ -20,7 +20,7 @@ LIPID MAPS goes through the same steps (its structures are already clean: they r
   LIPID MAPS has them. Ranking keeps one entry per inchikey14, so the duplicates cost nothing else.
 - Fingerprint and exact mass are computed with RDKit from the standardised molecule, as for the train molecules.
 
-Outputs (in fingerprints_MLP/library/):
+Outputs (in library/data/):
 - bio_molecules.parquet: source ("chebi" or "lipidmaps"), source_id, normalized_smiles (RDKit SMILES of the
   standardised molecule), inchikey14, exact_mass, in_train, in_coconut
 - bio_fingerprints.npy: uint8 (n_molecules, 2048 / 8), bit-packed; row i <-> row i of the parquet
@@ -29,6 +29,7 @@ Usage: python build_bio_library.py
 """
 
 import gzip
+import sys
 import zipfile
 from pathlib import Path
 
@@ -38,12 +39,13 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem.MolStandardize import rdMolStandardize
 
-from morgan_generator import fingerprint_from_mol
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fingerprints_MLP" / "src"))
+from morgan_generator import fingerprint_from_mol  # noqa: E402
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CHEBI_PATH = PROJECT_DIR / "data" / "chebi" / "chebi.sdf.gz"
 LIPIDMAPS_PATH = PROJECT_DIR / "data" / "lipidmaps" / "LMSD.sdf.zip"
-LIBRARY_DIR = Path(__file__).resolve().parent / "library"
+LIBRARY_DIR = Path(__file__).resolve().parent / "data"
 
 MAX_EXACT_MASS = 2000.0  # proteins, polymers and other giants are not test molecules
 

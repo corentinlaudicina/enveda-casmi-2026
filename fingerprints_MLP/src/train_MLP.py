@@ -1,6 +1,6 @@
 """Train an MLP that predicts a molecule's Morgan fingerprint (2048 bits) from one binned MS/MS spectrum.
 
-Needs the outputs of build_fingerprint_library.py and build_spectrum_arrays.py in fingerprints_MLP/library/.
+Needs the outputs of build_fingerprint_library.py and build_spectrum_arrays.py in library/data/.
 
 - Input: the spectrum's peaks binned into N_BINS bins of 0.1 Da (max sqrt intensity per bin),
   followed by the N_METADATA_FEATURES measurement features of metadata_features.py
@@ -31,8 +31,8 @@ from metadata_features import METADATA_COLUMNS, N_METADATA_FEATURES, metadata_fe
 from spectrum_quality import clean_spectrum_mask
 from morgan_generator import N_BITS
 
-LIBRARY_DIR = Path(__file__).resolve().parent / "library"
-MODEL_DIR = Path(__file__).resolve().parent / "models"
+LIBRARY_DIR = Path(__file__).resolve().parent.parent.parent / "library" / "data"
+MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 MODEL_PATH = MODEL_DIR / "mlp_all_libraries.pt"  # the enveda-180-only model is models/mlp.pt
 
 TRAIN_LIBRARIES = [

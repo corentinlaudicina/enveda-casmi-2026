@@ -10,12 +10,14 @@ Usage: python compare_models.py [family ...]  (default: mlp_negatives mlp_resamp
 """
 
 import sys
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 
-from evaluate_ranking import RESULTS_DIR, reciprocal_ranks
-from rank_candidates import SCORERS
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))  # the fingerprints_MLP modules
+from evaluate_ranking import RESULTS_DIR, reciprocal_ranks  # noqa: E402
+from rank_candidates import SCORERS  # noqa: E402
 
 DEFAULT_FAMILIES = ["mlp_negatives", "mlp_resampled", "mlp_combined"]
 

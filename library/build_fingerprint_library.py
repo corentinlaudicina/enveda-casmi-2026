@@ -3,11 +3,12 @@
 train.parquet is read batch by batch (only the two label columns), so the 3 GB file never sits in memory.
 Molecules appear many times (one row per spectrum), so each SMILES is fingerprinted only the first time it is seen.
 
-Outputs (in fingerprints_MLP/library/):
+Outputs (in library/data/):
 - molecules.parquet: one row per molecule: fp_index, normalized_smiles, inchikey14, exact_mass (monoisotopic, Da)
 - morgan_fingerprints.npy: uint8 matrix (n_molecules, 2048 / 8), bit-packed; row i <-> fp_index i
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -16,11 +17,12 @@ import pyarrow.parquet as pq
 from rdkit import Chem
 from rdkit.Chem.Descriptors import ExactMolWt
 
-from morgan_generator import fingerprint_from_mol
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fingerprints_MLP" / "src"))
+from morgan_generator import fingerprint_from_mol  # noqa: E402
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 TRAIN_PATH = PROJECT_DIR / "data" / "enveda-CASMI26-molecule-id-mass-spectra" / "train.parquet"
-OUTPUT_DIR = Path(__file__).resolve().parent / "library"
+OUTPUT_DIR = Path(__file__).resolve().parent / "data"
 
 BATCH_SIZE = 100_000  # rows read at a time; only 2 string columns, so this is a few MB
 

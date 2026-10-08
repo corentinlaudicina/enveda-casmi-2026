@@ -32,7 +32,7 @@ EMBEDDING_SCALE = 32.0
 N_OTHER_INPUTS = N_BINS + N_METADATA_FEATURES  # binned spectrum + metadata, as in train_MLP.py
 
 # The PCA of dreaMS/fit_dreams_pca.py. The Kaggle kernel points it to its dataset folder before predicting.
-PCA_PATH = Path(__file__).resolve().parent / "library" / "dreams_pca.npz"
+PCA_PATH = Path(__file__).resolve().parent.parent.parent / "library" / "data" / "dreams_pca.npz"
 
 # Adducts with at least 1,000 train spectra: the ones dreaMS/embed_train.py embedded (its selected_rows.parquet)
 EMBEDDED_ADDUCTS = {

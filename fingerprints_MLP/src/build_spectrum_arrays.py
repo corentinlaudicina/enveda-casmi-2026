@@ -7,7 +7,7 @@ Spectra with fewer peaks are padded with bin 0 / intensity 0, which add nothing 
 
 train.parquet is read batch by batch, without the label-only and metadata columns.
 
-Output: fingerprints_MLP/library/spectrum_arrays.npz with
+Output: library/data/spectrum_arrays.npz with
 - peak_bins (n_spectra, MAX_PEAKS) int16
 - peak_intensities (n_spectra, MAX_PEAKS) float16
 - fp_index (n_spectra,) int32: row of the molecule in molecules.parquet / morgan_fingerprints.npy
@@ -19,9 +19,9 @@ import numpy as np
 import polars as pl
 import pyarrow.parquet as pq
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
 TRAIN_PATH = PROJECT_DIR / "data" / "enveda-CASMI26-molecule-id-mass-spectra" / "train.parquet"
-LIBRARY_DIR = Path(__file__).resolve().parent / "library"
+LIBRARY_DIR = PROJECT_DIR / "library" / "data"
 
 MAX_MZ = 1000.0
 BIN_WIDTH = 0.1

@@ -11,7 +11,7 @@ those 32 by heart. With the bank, every batch draws fresh decoys from the molecu
   whose fingerprint equals the true one
 - the pool parts are sorted by mass and read in order, so the bank is sorted by mass
 
-Output: library/negative_bank.npz (~1 GB, under the 4 GB limit of the USB disk)
+Output: library/data/negative_bank.npz (~1 GB, under the 4 GB limit of the USB disk)
 - fingerprints: uint8 (n_bank, N_BITS / 8), bit-packed like morgan_fingerprints.npy
 - masses: float64 (n_bank,), exact masses, ascending
 
@@ -30,7 +30,7 @@ from build_negatives import N_WORKERS, held_out_keys
 from morgan_generator import fingerprint
 from train_MLP import LIBRARY_DIR, SEED
 
-sys.path.insert(0, str(Path(__file__).resolve().parent / "pubchem_pool"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "library" / "pubchem_pool"))
 from build_pool import POOL_DIR  # noqa: E402
 
 OUTPUT_PATH = LIBRARY_DIR / "negative_bank.npz"

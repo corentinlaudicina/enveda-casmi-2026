@@ -6,7 +6,7 @@ The full embedding is 1024 dense numbers next to a binned spectrum with ~50 non-
 - Exact PCA: mean, covariance matrix (1024 x 1024), eigenvectors sorted by decreasing variance.
 - N_COMPONENTS components are saved. The first k of them are the PCA with k components, so one fit serves every k up to N_COMPONENTS (256, 128, 64).
 
-Output: fingerprints_MLP/library/dreams_pca.npz (dreams_inputs.PCA_PATH)
+Output: library/data/dreams_pca.npz (dreams_inputs.PCA_PATH)
 - mean: float64 (1024,), mean embedding of the fit sample
 - components: float64 (N_COMPONENTS, 1024), unit-length directions, by decreasing variance
 - explained_variance: float64 (N_COMPONENTS,), variance of the sample along each component
@@ -21,9 +21,9 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fingerprints_MLP"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fingerprints_MLP" / "src"))
 from build_spectrum_arrays import TRAIN_PATH  # noqa: E402
-from dreams_inputs import PCA_PATH  # noqa: E402  (fingerprints_MLP/library/dreams_pca.npz)
+from dreams_inputs import PCA_PATH  # noqa: E402  (library/data/dreams_pca.npz)
 from train_MLP import LIBRARY_DIR, SEED, split_spectra_by_molecule  # noqa: E402
 from train_MLP_dreams import embeddings_of_rows  # noqa: E402
 N_FIT = 200_000
