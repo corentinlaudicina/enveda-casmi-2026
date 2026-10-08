@@ -43,35 +43,11 @@ top 25 SMILES, one per InChIKey14
 | [train_MLP_dreams.py](fingerprints_MLP/src/train_MLP_dreams.py) | Uses DreaMS embeddings as input instead of binned peaks |
 | [train_MLP_combined.py](fingerprints_MLP/src/train_MLP_combined.py) | `train_MLP_resampled.py` with binned peaks **and** the DreaMS embedding as input. Embedding dropout (0.15) during training, so the model also works without it. Optional PCA reduction: `python train_MLP_combined.py <seed> <k>` |
 
-The ranking-loss scripts (`negatives`, `resampled`, `combined`) share their setup and training loop, take a training seed on the command line and save `models/<name>_seed<N>.pt`. The molecule split stays fixed, so seeds only change the training. [compare_models.py](fingerprints_MLP/analysis/compare_models.py) reports the mean ± standard deviation of each model family over its seeds.
-
-The validation molecules are split in two halves: the training scripts pick their best epoch on one, and `evaluate_ranking.py` reports on the other.
-
-The best model on the leaderboard so far is the one trained with the ranking loss (`mlp_negatives`). First seeded runs (seed 0): `negatives` and `resampled` both reach a validation MRR of ~0.673 among their candidates; the combined model with the full DreaMS embedding led for the first epochs, then fell ~0.02 behind `resampled`. PCA-reduced embeddings (256, 128, 64 dimensions) are next.
-
 ### Candidate pools
 - **train**: the structures of `train.parquet` (275,810 molecules).
 - **train + COCONUT**: adds 480k natural products ([build_coconut_library.py](library/build_coconut_library.py)). This is the current pool for submissions. Isotope-labelled COCONUT entries (e.g. `[13C]`, deuterated) are replaced by their unlabelled form, so they sit in the right mass window.
 - **ChEBI + LIPID MAPS** ([build_bio_library.py](library/build_bio_library.py)): 158,790 standardised metabolites and lipids, 70,606 of them new to train + COCONUT. Built, not yet used in evaluation or submissions.
 - **train + PubChem** ([pubchem_pool/](library/pubchem_pool/)): 90M structures. Tested, but it did not help (see below).
-
-## Results
-
-Local evaluation uses held-out molecules the model never saw ([evaluate_ranking.py](fingerprints_MLP/analysis/evaluate_ranking.py)), because the visible `test.parquet` is a placeholder copied from train. The validation-molecule numbers below were measured on all validation molecules, before the selection/test split; new runs report on the test half only, so they are not directly comparable.
-
-| Step | Result |
-|---|---|
-| Cosine library search (first submission) | local MRR 0.867 on molecules already in train, 0.017 on novel ones. **Public LB 0.098**: about 9 in 10 hidden-test molecules have no spectrum in train |
-| MLP + ranking, validation molecules, train pool | MRR@25 0.46 (baseline MLP), 0.456 with the ranking loss |
-| Baseline MLP on natural products (`enveda-np-examples`, train+COCONUT pool) | 0.138 vs 0.107 random: a model trained on `enveda-180` alone barely transfers to natural products |
-| Ranking loss, validation molecules, (train − queries) + PubChem pool | 0.133 → 0.175 (+0.043 ± 0.006) |
-| Public LB, MLP with ranking loss, train + COCONUT pool | 0.112 |
-| Public LB, same model, train + PubChem pool | 0.079 |
-
-- **Library search cannot find novel molecules.** Better spectrum similarity adds at most ~0.02 to the score. Replacing cosine with DreaMS embeddings did not help either (0.811 vs 0.867 on known molecules).
-- **`enveda-180` is not natural-product-like** (0.03% of its molecules are in COCONUT, vs 99.6% of `enveda-np-examples`), so it is a poor proxy for the hidden test alone. Training on the public libraries too, and evaluating on natural products separately, matters.
-- **A bigger pool is not better.** PubChem raises recall but adds many decoys: on the placeholder output, 68% of top-1 guesses were PubChem-only structures, and the leaderboard score dropped. The hidden-test answers are mostly not PubChem-only.
-- **SHAP analysis** ([shap_analysis.py](fingerprints_MLP/analysis/shap_analysis.py)): ~80% of the attribution comes from fragment peaks (mostly m/z 60–250), 16–18% from metadata. Neutral losses of 162 (hexose) and 308 (rutinoside) matter for natural products.
 
 ## Repository layout
 
