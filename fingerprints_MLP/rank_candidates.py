@@ -2,8 +2,7 @@
 
 1. Candidates: every structure of the library whose exact mass is within PPM_TOLERANCE of the query's neutral mass.
 2. Score: how well each candidate's true fingerprint agrees with the predicted probabilities (two scorers below).
-3. Rank by score, keeping one entry per inchikey14 (the metric compares inchikey14, so a second SMILES
-   with the same inchikey14, e.g. a stereoisomer, would waste a slot of the top 25).
+3. Rank by score, keeping one entry per inchikey14 (the metric compares inchikey14, so a second SMILES with the same inchikey14, e.g. a stereoisomer, would waste a slot of the top 25).
 """
 
 import numpy as np
@@ -20,8 +19,7 @@ def likelihood_scores(probabilities: np.ndarray, candidate_bits: np.ndarray) -> 
 
     log L = sum over bits of  bit * log(p) + (1 - bit) * log(1 - p)
           = sum over bits of  bit * [log(p) - log(1 - p)]  +  sum over bits of log(1 - p)
-    The second sum is the same for every candidate, so it doesn't change the ranking and is dropped:
-    the score is a weighted count of the candidate's bits, each bit weighted by its log-odds.
+    The second sum is the same for every candidate, so it doesn't change the ranking and is dropped: the score is a weighted count of the candidate's bits, each bit weighted by its log-odds.
     """
     p = np.clip(probabilities, EPSILON, 1 - EPSILON)
     log_odds = np.log(p) - np.log(1 - p)
@@ -73,15 +71,15 @@ class CandidateLibrary:
         Columns: normalized_smiles, inchikey14, score. Empty frame if no structure has that mass.
         """
         positions = self.candidates_in_mass_window(neutral_mass)
-        candidate_bits = np.unpackbits(self.packed_fingerprints[positions], axis=1, count=n_bits).astype(np.float32)
+        candidate_bits = np.unpackbits(self.packed_fingerprints[positions],
+                                       axis=1, count=n_bits).astype(np.float32)
         score_function = SCORERS[scorer] if isinstance(scorer, str) else scorer
         scores = score_function(probabilities, candidate_bits)
 
-        ranking = (
-            self.molecules[positions]
-            .select("normalized_smiles", "inchikey14")
-            .with_columns(pl.Series("score", scores))
-            .sort("score", descending=True)
-            .unique(subset="inchikey14", keep="first", maintain_order=True)
-        )
+        candidates = self.molecules[positions].select("normalized_smiles", "inchikey14")
+        candidates = candidates.with_columns(pl.Series("score", scores))
+        ranking = candidates.sort("score", descending=True)
+
+        # The ranking is sorted, so the first row of each inchikey14 is its best-scoring one.
+        ranking = ranking.unique(subset="inchikey14", keep="first", maintain_order=True)
         return ranking

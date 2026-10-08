@@ -1,4 +1,4 @@
-"""train_MLP.py plus a ranking loss against same-mass look-alikes. Saves models/mlp_negatives.pt.
+"""train_MLP.py plus a ranking loss against same-mass look-alikes. Saves models/mlp_negatives_seed<N>.pt.
 
 train_MLP.py only teaches the MLP to get each fingerprint bit right. At retrieval time, though, the prediction has to
 beat ~10,000 pool structures of the same mass. So a second loss shows it some of them during training:
@@ -10,14 +10,15 @@ beat ~10,000 pool structures of the same mass. So a second loss shows it some of
 - ranking loss: cross-entropy of "the true structure is the best", a softmax over the candidates' scores / TEMPERATURE
 - total loss = binary cross entropy + RANKING_WEIGHT x ranking loss. Binary cross entropy keeps the bits sensible; 
   the ranking loss teaches the model to separate look-alikes.
+- spectra whose molecule has no negative (empty mass window) are left out of the ranking loss average: their loss
+  would be the truth against itself, always zero, and would only dilute the batch's ranking signal
 
-Same split, model, data and schedule as train_MLP.py (imported from it). Validation reports the BCE and Tanimoto of
-train_MLP.py, and the ranking metrics among each validation molecule's own candidates: ranking loss, top-1 and MRR.
-The model of the epoch with the best validation MRR is saved.
+The model is saved as models/mlp_negatives_seed<training seed>.pt
 
-Usage: python train_MLP_negatives.py
+Usage: python train_MLP_negatives.py [training seed, default 0]
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -32,10 +33,10 @@ from morgan_generator import N_BITS
 from spectrum_quality import clean_spectrum_mask
 from train_MLP import (
     BATCH_SIZE, DEVICE, LEARNING_RATE, LIBRARY_DIR, MODEL_DIR, N_EPOCHS, SEED,
-    SpectrumBatcher, build_model, constant_baseline, evaluate, split_spectra_by_molecule,
+    SpectrumBatcher, build_model, constant_baseline, evaluate, split_selection_and_test, split_spectra_by_molecule,
 )
 
-MODEL_PATH = MODEL_DIR / "mlp_negatives.pt"
+MODEL_NAME = "mlp_negatives"
 NEGATIVES_PATH = LIBRARY_DIR / "negatives.npz"
 RANKING_WEIGHT = 0.01  # lambda
 TEMPERATURE = 0.05  # Tanimoto scores of look-alikes differ by a few hundredths: a small temperature sharpens the softmax
@@ -68,6 +69,13 @@ class NegativesBatcher(SpectrumBatcher):
         is_real = slots[None, :] < n_negatives[:, None]
         return negative_bits, is_real
 
+    def get_training_batch(self, spectrum_indices: np.ndarray, rng: np.random.Generator) -> tuple[torch.Tensor, torch.Tensor]:
+        """(inputs, targets) for a training step: the same as get_batch here.
+
+        CombinedBatcher (train_MLP_combined.py) overrides it to drop some embeddings during training only.
+        """
+        return self.get_batch(spectrum_indices)
+
 
 def soft_tanimoto(probabilities: torch.Tensor, candidate_bits: torch.Tensor) -> torch.Tensor:
     """Tanimoto between each row's probabilities (n, N_BITS) and each of its candidates (n, n_candidates, N_BITS).
@@ -90,9 +98,18 @@ def candidate_scores(logits: torch.Tensor, targets: torch.Tensor, negative_bits:
 
 
 def ranking_loss(scores: torch.Tensor) -> torch.Tensor:
-    """Cross-entropy of "column 0 (the true structure) is the best candidate", averaged over the rows."""
+    """Cross-entropy of "column 0 (the true structure) is the best candidate", averaged over the rows with a negative.
+
+    A row without any real negative (all -inf after column 0) has a loss of exactly zero: it is left out of the
+    average instead of diluting it. A batch without any negative gives 0.
+    """
     truth_column = torch.zeros(len(scores), dtype=torch.long, device=DEVICE)
-    return functional.cross_entropy(scores, truth_column)
+    loss_per_row = functional.cross_entropy(scores, truth_column, reduction="none")
+
+    has_negative = torch.isfinite(scores[:, 1:]).any(dim=1)
+    if not has_negative.any():
+        return torch.zeros((), device=DEVICE)
+    return loss_per_row[has_negative].mean()
 
 
 @torch.no_grad()
@@ -121,28 +138,52 @@ def evaluate_ranking(model: nn.Module, batcher: NegativesBatcher, indices: np.nd
     }
 
 
-def run_training(batcher_class, model_path: Path, fresh_decoys: bool) -> None:
-    """The whole training run, shared by this script and train_MLP_resampled.py.
+def training_seed_from_command_line() -> int:
+    """The training seed given on the command line (python train_MLP_negatives.py 1), 0 by default."""
+    return int(sys.argv[1]) if len(sys.argv) > 1 else 0
 
-    batcher_class: NegativesBatcher (the fixed negatives of negatives.npz) or ResampledBatcher (fresh decoys from the bank).
-    fresh_decoys: True to draw new decoys for every batch (batcher.draw_negatives), False to use the fixed ones.
+
+def model_path(model_name: str, training_seed: int) -> Path:
+    return MODEL_DIR / f"{model_name}_seed{training_seed}.pt"
+
+
+def prepare_training(batcher_class, training_seed: int) -> tuple[NegativesBatcher, np.ndarray, np.ndarray, np.random.Generator]:
+    """(batcher, train_indices, selection_indices, rng): the setup shared by the three ranking-loss scripts.
+
+    batcher_class: NegativesBatcher, ResampledBatcher (train_MLP_resampled.py) or CombinedBatcher (train_MLP_combined.py).
+    The spectra are the same for every batcher class and training seed: the molecule split has its own generator
+    seeded with SEED, and rng (seeded with training_seed) only drives the training.
     """
-    rng = np.random.default_rng(SEED)
-    torch.manual_seed(SEED)
+    torch.manual_seed(training_seed)
+    rng = np.random.default_rng(training_seed)
 
     # per-spectrum columns of train.parquet (no peak lists), in the same row order as the spectrum arrays
     spectrum_info = pl.scan_parquet(TRAIN_PATH).select(["ingest_lib"] + METADATA_COLUMNS).collect()
     metadata = metadata_features(spectrum_info)
-
     batcher = batcher_class(metadata)
-    train_indices, validation_indices = split_spectra_by_molecule(batcher.fp_index, spectrum_info["ingest_lib"], rng)
+
+    split_rng = np.random.default_rng(SEED)  # same split as train_MLP.py: the split is the generator's first use
+    train_indices, validation_indices = split_spectra_by_molecule(batcher.fp_index, spectrum_info["ingest_lib"], split_rng)
+    selection_indices, _ = split_selection_and_test(batcher.fp_index, validation_indices)  # test half: evaluate_ranking.py
 
     # drop the clearly wrong or useless spectra from training (validation is enveda-180: already clean)
     is_clean = clean_spectrum_mask(TRAIN_PATH)
     n_before = len(train_indices)
     train_indices = train_indices[is_clean[train_indices]]
     print(f"quality filter: kept {len(train_indices):,} of {n_before:,} train spectra")
-    print(f"device {DEVICE} | {len(train_indices):,} train spectra, {len(validation_indices):,} validation spectra")
+    print(f"device {DEVICE} | training seed {training_seed} | {len(train_indices):,} train spectra, "
+          f"{len(selection_indices):,} validation (selection half) spectra")
+    return batcher, train_indices, selection_indices, rng
+
+
+def train_with_ranking_loss(model: nn.Module, batcher: NegativesBatcher, train_indices: np.ndarray,
+                            validation_indices: np.ndarray, rng: np.random.Generator, model_path: Path,
+                            fresh_decoys: bool) -> float:
+    """Training loop: BCE + RANKING_WEIGHT x ranking loss, best validation MRR among candidates saved to model_path.
+
+    Shared by the three ranking-loss scripts. With fresh_decoys, batcher needs draw_negatives (ResampledBatcher).
+    Returns the best validation MRR.
+    """
     if fresh_decoys:
         decoys = "fresh decoys per spectrum and batch from the bank"
     else:
@@ -152,7 +193,7 @@ def run_training(batcher_class, model_path: Path, fresh_decoys: bool) -> None:
     baseline_k, baseline_tanimoto = constant_baseline(batcher, train_indices, validation_indices)
     print(f"constant baseline: top {baseline_k} most frequent bits | validation Tanimoto {baseline_tanimoto:.3f}")
 
-    model = build_model().to(DEVICE)
+    model = model.to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     bce_function = nn.BCEWithLogitsLoss()
 
@@ -175,7 +216,7 @@ def run_training(batcher_class, model_path: Path, fresh_decoys: bool) -> None:
 
         for start in range(0, len(shuffled), BATCH_SIZE):
             batch_indices = shuffled[start:start + BATCH_SIZE]
-            inputs, targets = batcher.get_batch(batch_indices)
+            inputs, targets = batcher.get_training_batch(batch_indices, rng)
             if fresh_decoys:
                 negative_bits, is_real = batcher.draw_negatives(batch_indices, targets, rng)
             else:
@@ -216,10 +257,14 @@ def run_training(batcher_class, model_path: Path, fresh_decoys: bool) -> None:
             print(f"  saved model to {model_path}")
 
     print(f"Best validation MRR among candidates {best_mrr:.3f}")
+    return best_mrr
 
 
 def main():
-    run_training(NegativesBatcher, MODEL_PATH, fresh_decoys=False)
+    training_seed = training_seed_from_command_line()
+    batcher, train_indices, selection_indices, rng = prepare_training(NegativesBatcher, training_seed)
+    train_with_ranking_loss(build_model(), batcher, train_indices, selection_indices, rng,
+                            model_path(MODEL_NAME, training_seed), fresh_decoys=False)
 
 
 if __name__ == "__main__":
